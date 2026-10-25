@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Board figure bridge test</title>
+<style>
+  body{font:13px/1.45 ui-monospace,Menlo,monospace;margin:16px;background:#f2efe7;color:#231e16}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  iframe{width:min(760px,100%);height:640px;border:1.5px solid #231e16;border-radius:10px;background:#f2efe7}
+  #log{white-space:pre-wrap;max-width:420px;border:1px solid #c9c1b0;border-radius:8px;padding:8px;min-height:200px}
+  button{font:inherit;border:1.5px solid #231e16;border-radius:999px;padding:4px 12px;background:none;cursor:pointer}
+</style>
+</head>
+<body>
+<h1 style="font-size:14px">Colorfigures board ⇄ host bridge</h1>
+<p>The figure is a standalone Colorfigures page in an iframe. This host pushes simulator state in and logs the events it emits.</p>
+<div class="row">
+  <iframe id="fig" src="esp32-board.figure.html" title="ESP32 board figure"></iframe>
+  <div>
+    <p><button id="on">GPIO2 HIGH</button> <button id="off">GPIO2 LOW</button> <button id="blink">Blink</button></p>
+    <div id="log" aria-live="polite"></div>
+    <pre id="result"></pre>
+  </div>
+</div>
+<script>
+  const frame = document.getElementById('fig'), log = document.getElementById('log');
+  const events = [], renders = [];
+  const say = (t) => { log.textContent += t + '\n'; };
+  const send = (state) => frame.contentWindow.postMessage({ type: 'cf:state', state }, '*');
+  let blink = 0;
+  addEventListener('message', (e) => {
+    const m = e.data; if (!m || !m.type) return;
+    if (m.type === 'cf:ready') { say('figure ready'); ready(); }
+    if (m.type === 'cf:event') { events.push(m); say(`event: ${m.event} ${m.target}`);
+      // the host owns behaviour: EN restarts the "firmware", which here just turns the LED off
+      if (m.event === 'press' && m.target === 'EN') { clearInterval(blink); send({ led2: 0 }); } }
+    if (m.type === 'cf:rendered') { renders.push(m); say(`rendered: led2=${m.led2} glowLayers=${m.glowLayers}`); }
+  });
+  document.getElementById('on').onclick = () => send({ led2: 1 });
+  document.getElementById('off').onclick = () => send({ led2: 0 });
+  document.getElementById('blink').onclick = () => { let v = 0; clearInterval(blink); blink = setInterval(() => send({ led2: v ^= 1 }), 500); };
+
+  // ?auto=1: scripted proof for headless runs. Results land in #result as JSON.
+  function ready() {
+    if (!new URLSearchParams(location.search).has('auto')) return;
+    const doc = frame.contentDocument;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    (async () => {
+      const out = {};
+      send({ led2: 0 }); await wait(150);
+      out.glowWhenLow = doc.querySelectorAll('#art .glow circle').length;
+      send({ led2: 1 }); await wait(150);
+      out.glowWhenHigh = doc.querySelectorAll('#art .glow circle').length;
+      const en = doc.querySelector('[data-act="press"][data-target="EN"] path');
+      en.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      await wait(50);
+      frame.contentWindow.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      const pin = doc.querySelector('[data-act="term"][data-term="GPIO23"] circle');
+      pin.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      await wait(150);
+      out.events = events.map((e) => `${e.event}:${e.target}`);
+      out.renders = renders.length;
+      out.terminals = doc.querySelectorAll('[data-act="term"]').length;
+      out.errors = doc.documentElement.dataset.errors || '';
+      document.getElementById('result').textContent = JSON.stringify(out);
+      document.documentElement.dataset.result = JSON.stringify(out);
+    })();
+  }
+</script>
+</body>
+</html>

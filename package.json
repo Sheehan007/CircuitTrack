@@ -1,0 +1,27 @@
+{
+  "name": "esp32-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "poc": "node scripts/build-poc.mjs"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.57.0",
+    "preact": "^11.0.1"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
